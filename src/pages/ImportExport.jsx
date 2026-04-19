@@ -359,7 +359,7 @@ const ImportExport = () => {
       {/* ── EXPORT MODE ── */}
       {mode === 'export' && (
         <div className="animate-slideUp">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div className="grid-2col" style={{ marginBottom: '1rem' }}>
             {/* Assets Export Card */}
             <div className="glass-panel no-hover">
               <div className="flex items-center gap-3 mb-4">

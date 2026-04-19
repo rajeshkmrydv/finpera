@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useFinpera } from '../context/FinperaContext';
-import { Plus, Trash2, Pencil, X } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, AlertTriangle } from 'lucide-react';
+
+const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
 
 const Liabilities = () => {
   const { liabilities, addLiability, updateLiability, deleteLiability, totalLiabilitiesValue, totalMonthlyEMI } = useFinpera();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ name: '', totalAmount: '', remainingAmount: '', emi: '', interestRate: '' });
-
-  const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -48,6 +49,13 @@ const Liabilities = () => {
     setEditingId(null);
   };
 
+  const handleDeleteConfirm = () => {
+    if (confirmDelete) {
+      deleteLiability(confirmDelete.id);
+      setConfirmDelete(null);
+    }
+  };
+
   const paidPercent = (loan) => {
     if (!loan.totalAmount) return 0;
     return Math.round(((loan.totalAmount - loan.remainingAmount) / loan.totalAmount) * 100);
@@ -55,7 +63,7 @@ const Liabilities = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Liabilities & Loans</h1>
           <p>Track your active loans, EMIs, and repayment progress.</p>
@@ -67,7 +75,7 @@ const Liabilities = () => {
 
       {/* Summary Cards */}
       {liabilities.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div className="grid-stats mb-6">
           <div className="glass-panel stat-card accent-red animate-slideUp stagger-1" style={{ padding: '1.25rem' }}>
             <p className="text-sm text-muted mb-1">Outstanding Debt</p>
             <p className="stat-value" style={{ fontSize: '1.4rem', color: 'var(--danger)' }}>{formatCurrency(totalLiabilitiesValue)}</p>
@@ -116,10 +124,10 @@ const Liabilities = () => {
                   </td>
                   <td className="text-right">
                     <div className="flex justify-end gap-1">
-                      <button className="btn-ghost btn-icon" onClick={() => openEditModal(loan)} title="Edit">
+                      <button className="btn-ghost btn-icon" onClick={() => openEditModal(loan)} title="Edit" aria-label={`Edit ${loan.name}`}>
                         <Pencil size={15} style={{ color: 'var(--accent-primary)' }} />
                       </button>
-                      <button className="btn-ghost btn-icon" onClick={() => deleteLiability(loan.id)} title="Delete">
+                      <button className="btn-ghost btn-icon" onClick={() => setConfirmDelete(loan)} title="Delete" aria-label={`Delete ${loan.name}`}>
                         <Trash2 size={15} style={{ color: 'var(--danger)' }} />
                       </button>
                     </div>
@@ -143,13 +151,32 @@ const Liabilities = () => {
         </div>
       </div>
 
+      {/* Delete Confirm */}
+      {confirmDelete && (
+        <div className="confirm-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <AlertTriangle size={22} style={{ color: 'var(--danger)' }} />
+            </div>
+            <h3 style={{ marginBottom: '0.5rem' }}>Delete Loan?</h3>
+            <p className="text-sm text-muted" style={{ marginBottom: '1.5rem' }}>
+              <strong>{confirmDelete.name}</strong> ({formatCurrency(confirmDelete.remainingAmount)} remaining) will be permanently removed.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleDeleteConfirm} style={{ fontWeight: 600 }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add / Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingId ? 'Edit Loan' : 'Add Liability / Loan'}</h2>
-              <button className="btn-ghost btn-icon" onClick={() => setShowModal(false)}>
+              <button className="btn-ghost btn-icon" onClick={() => setShowModal(false)} aria-label="Close modal">
                 <X size={20} />
               </button>
             </div>

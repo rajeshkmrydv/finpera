@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback, memo } from 'react';
 import { useFinpera } from '../context/FinperaContext';
 import { UNIT_BASED_TYPES } from '../utils/dummyData';
 import {
@@ -9,6 +9,34 @@ import { TrendingUp, Wallet, CreditCard, Activity, RefreshCw, Loader, X, ArrowUp
 import { Link } from 'react-router-dom';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899', '#06b6d4', '#64748b'];
+
+const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
+const formatPrice = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+const formatQty = (val) => new Intl.NumberFormat('en-IN').format(val);
+
+const formatLac = (val) => {
+  if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+  if (val >= 100000) return `${(val / 100000).toFixed(2)} L`;
+  if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
+  return `${val}`;
+};
+
+const formatCompact = (val) => {
+  if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
+  if (val >= 100000) return `${(val / 100000).toFixed(2)} L`;
+  if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
+  return val.toFixed(0);
+};
+
+const ChartTooltip = memo(({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px', padding: '0.75rem 1rem', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
+      <p style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: '2px', color: 'var(--text-primary)' }}>{payload[0].name || payload[0].payload?.name}</p>
+      <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(payload[0].value)}</p>
+    </div>
+  );
+});
 
 const Dashboard = () => {
   const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, refreshPrices, refreshing, lastRefreshed } = useFinpera();
@@ -43,60 +71,18 @@ const Dashboard = () => {
     }));
   }, [assetAllocation]);
 
-  const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
-  const formatPrice = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
-  const formatQty = (val) => new Intl.NumberFormat('en-IN').format(val);
-
-  const formatLac = (val) => {
-    if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
-    if (val >= 100000) return `${(val / 100000).toFixed(2)} L`;
-    if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
-    return `${val}`;
-  };
-
-  const formatCompact = (val) => {
-    if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
-    if (val >= 100000) return `${(val / 100000).toFixed(2)} L`;
-    if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
-    return val.toFixed(0);
-  };
-
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshResult(null);
     const result = await refreshPrices();
     setRefreshResult(result);
     setTimeout(() => setRefreshResult(null), 5000);
-  };
+  }, [refreshPrices]);
 
   const refreshableCount = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol).length;
 
   const assetRatio = totalAssetsValue + totalLiabilitiesValue > 0
     ? (totalAssetsValue / (totalAssetsValue + totalLiabilitiesValue)) * 100
     : 100;
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px', padding: '0.75rem 1rem', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
-          <p className="text-sm font-medium" style={{ marginBottom: '2px' }}>{payload[0].name || payload[0].payload?.name}</p>
-          <p className="text-sm text-strong">{formatCurrency(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const BarTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px', padding: '0.75rem 1rem', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
-          <p className="text-sm font-medium" style={{ marginBottom: '2px' }}>{payload[0].payload?.name}</p>
-          <p className="text-sm text-strong">{formatCurrency(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   const renderCenterLabel = (props) => {
     const vb = props?.viewBox;
@@ -105,9 +91,7 @@ const Dashboard = () => {
     const totalVal = assetAllocation.reduce((s, a) => s + a.value, 0);
     return (
       <g>
-        <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--text-tertiary)" fontSize="12" fontWeight="500">
-          Total
-        </text>
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="var(--text-tertiary)" fontSize="12" fontWeight="500">Total</text>
         <text x={cx} y={cy + 16} textAnchor="middle" fill="var(--text-primary)" fontSize="18" fontWeight="700" letterSpacing="-0.03em">
           {formatCompact(totalVal)}
         </text>
@@ -118,12 +102,12 @@ const Dashboard = () => {
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Financial Overview</h1>
           <p>Your portfolio at a glance</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
           {lastRefreshed && (
             <span className="text-xs text-muted">
               Updated {new Date(lastRefreshed).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -131,7 +115,7 @@ const Dashboard = () => {
           )}
           {refreshableCount > 0 && (
             <button className="btn btn-secondary" onClick={handleRefresh} disabled={refreshing}>
-              {refreshing ? <Loader size={16} style={{ animation: 'pulse 1s ease infinite' }} /> : <RefreshCw size={16} />}
+              {refreshing ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={16} />}
               {refreshing ? 'Updating...' : 'Refresh'}
             </button>
           )}
@@ -144,39 +128,38 @@ const Dashboard = () => {
             {refreshResult.updated > 0 && `Updated ${refreshResult.updated} price${refreshResult.updated > 1 ? 's' : ''}.`}
             {refreshResult.failed > 0 && ` ${refreshResult.failed} failed.`}
           </span>
-          <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)}><X size={14} /></button>
+          <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)} aria-label="Dismiss">
+            <X size={14} />
+          </button>
         </div>
       )}
 
       {/* Hero Gradient Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
-        {/* Net Worth - large hero */}
+      <div className="grid-hero mb-6">
+        {/* Net Worth */}
         <div className="gradient-card grd-indigo animate-slideUp stagger-1">
           <div className="flex justify-between items-start">
             <div>
               <p className="card-label">Net Worth</p>
               <p className="card-value lg">{formatCurrency(netWorth)}</p>
               <div className="card-sub" style={{ marginTop: '0.75rem' }}>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
+                  <span className="flex items-center gap-1">
                     <ArrowUpRight size={14} /> {formatCompact(totalAssetsValue)} assets
                   </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  <span className="flex items-center gap-1">
                     <ArrowDownRight size={14} /> {formatCompact(totalLiabilitiesValue)} debt
                   </span>
                 </div>
               </div>
             </div>
-            <div className="card-icon">
-              <TrendingUp size={22} />
-            </div>
+            <div className="card-icon"><TrendingUp size={22} /></div>
           </div>
-          {/* mini asset vs liability bar */}
           <div style={{ marginTop: '1rem' }}>
             <div style={{ display: 'flex', height: '6px', borderRadius: '3px', overflow: 'hidden', background: 'rgba(255,255,255,0.15)' }}>
               <div style={{ width: `${assetRatio}%`, background: 'rgba(255,255,255,0.7)', borderRadius: '3px', transition: 'width 0.6s ease' }} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.7rem', opacity: 0.6 }}>
+            <div className="flex justify-between" style={{ marginTop: '4px', fontSize: '0.7rem', opacity: 0.6 }}>
               <span>Assets</span>
               <span>Liabilities</span>
             </div>
@@ -191,9 +174,7 @@ const Dashboard = () => {
               <p className="card-value">{formatCurrency(totalAssetsValue)}</p>
               <p className="card-sub">{assets.length} investment{assets.length !== 1 ? 's' : ''} tracked</p>
             </div>
-            <div className="card-icon">
-              <Wallet size={22} />
-            </div>
+            <div className="card-icon"><Wallet size={22} /></div>
           </div>
         </div>
 
@@ -209,9 +190,7 @@ const Dashboard = () => {
                 <p className="card-sub">{liabilities.length} active loan{liabilities.length !== 1 ? 's' : ''}</p>
               )}
             </div>
-            <div className="card-icon">
-              <CreditCard size={22} />
-            </div>
+            <div className="card-icon"><CreditCard size={22} /></div>
           </div>
         </div>
       </div>
@@ -234,9 +213,9 @@ const Dashboard = () => {
             ))}
           </div>
           <div className="flex flex-wrap gap-4 mt-3">
-            {allocationBarData.map((seg, i) => (
+            {allocationBarData.map((seg) => (
               <div key={seg.name} className="flex items-center gap-2">
-                <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: seg.color }} />
+                <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: seg.color, flexShrink: 0 }} />
                 <span className="text-xs text-muted">{seg.name}</span>
                 <span className="text-xs font-medium">{seg.pct.toFixed(1)}%</span>
               </div>
@@ -246,9 +225,8 @@ const Dashboard = () => {
       )}
 
       {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
-
-        {/* Donut Chart with center label */}
+      <div className="grid-2col mb-4">
+        {/* Donut Chart */}
         <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.25s' }}>
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-bold">Asset Breakdown</h3>
@@ -270,11 +248,11 @@ const Dashboard = () => {
                     label={renderCenterLabel}
                     labelLine={false}
                   >
-                    {assetAllocation.map((entry, index) => (
+                    {assetAllocation.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip content={<CustomTooltip />} />
+                  <Tooltip content={<ChartTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -286,7 +264,7 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Bar Chart - value per asset type */}
+        {/* Bar Chart */}
         <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.3s' }}>
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-bold">Value by Category</h3>
@@ -305,7 +283,7 @@ const Dashboard = () => {
                     width={85} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
                     axisLine={false} tickLine={false}
                   />
-                  <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
                   <defs>
                     <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
                       <stop offset="0%" stopColor="#6366f1" />

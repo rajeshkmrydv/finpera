@@ -1,14 +1,18 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useFinpera } from '../context/FinperaContext';
 import { UNIT_BASED_TYPES, ASSET_TYPES } from '../utils/dummyData';
 import { fetchCurrentPrice } from '../utils/priceService';
 import AssetSearch from '../components/AssetSearch';
-import { Plus, Trash2, Pencil, X, Search, Filter, RefreshCw, Loader } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Search, Filter, RefreshCw, Loader, AlertTriangle } from 'lucide-react';
 
 const COMMODITY_PRESETS = [
   { label: 'Gold 22K', symbol: 'GOLD22K', category: 'Gold' },
   { label: 'Silver', symbol: 'SILVER_GRAM', category: 'Silver' },
 ];
+
+const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
+const formatPrice = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+const formatQty = (val) => new Intl.NumberFormat('en-IN').format(val);
 
 const Assets = () => {
   const { assets, addAsset, updateAsset, deleteAsset, getAssetValue, refreshPrices, refreshing, lastRefreshed } = useFinpera();
@@ -19,10 +23,7 @@ const Assets = () => {
   const [filterType, setFilterType] = useState('All');
   const [refreshResult, setRefreshResult] = useState(null);
   const [fetchingCommodityPrice, setFetchingCommodityPrice] = useState(false);
-
-  const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
-  const formatPrice = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
-  const formatQty = (val) => new Intl.NumberFormat('en-IN').format(val);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const isUnitBased = (type) => UNIT_BASED_TYPES.includes(type);
 
@@ -123,11 +124,18 @@ const Assets = () => {
     ? Number(formData.qty) * Number(formData.currentPrice)
     : 0;
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshResult(null);
     const result = await refreshPrices();
     setRefreshResult(result);
     setTimeout(() => setRefreshResult(null), 5000);
+  }, [refreshPrices]);
+
+  const handleDeleteConfirm = () => {
+    if (confirmDelete) {
+      deleteAsset(confirmDelete.id);
+      setConfirmDelete(null);
+    }
   };
 
   const typeCounts = useMemo(() => {
@@ -151,20 +159,19 @@ const Assets = () => {
   };
 
   const refreshableCount = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol).length;
-
   const isCommodity = formData.type === 'Commodity';
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Assets Library</h1>
           <p>Manage all your investments across asset classes.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
           {refreshableCount > 0 && (
             <button className="btn btn-secondary" onClick={handleRefresh} disabled={refreshing} title="Refresh all live prices">
-              {refreshing ? <Loader size={16} style={{ animation: 'pulse 1s ease infinite' }} /> : <RefreshCw size={16} />}
+              {refreshing ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={16} />}
               {refreshing ? 'Refreshing...' : 'Refresh Prices'}
             </button>
           )}
@@ -180,7 +187,7 @@ const Assets = () => {
             {refreshResult.updated > 0 && `Updated ${refreshResult.updated} price${refreshResult.updated > 1 ? 's' : ''}.`}
             {refreshResult.failed > 0 && ` ${refreshResult.failed} failed to fetch.`}
           </span>
-          <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)}><X size={14} /></button>
+          <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)} aria-label="Dismiss"><X size={14} /></button>
         </div>
       )}
 
@@ -192,8 +199,8 @@ const Assets = () => {
 
       {/* Filters */}
       <div className="glass-panel no-hover mb-4" style={{ padding: '0.75rem 1rem' }}>
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 flex-1" style={{ minWidth: '200px', maxWidth: '320px' }}>
+        <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
+          <div className="flex items-center gap-2 flex-1" style={{ minWidth: '180px', maxWidth: '320px' }}>
             <Search size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
             <input
               className="form-control"
@@ -201,6 +208,7 @@ const Assets = () => {
               placeholder="Search assets..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search assets"
             />
           </div>
           <div className="flex gap-1 flex-wrap ml-auto">
@@ -268,10 +276,10 @@ const Assets = () => {
                     <td className="text-right text-strong font-medium">{formatCurrency(getAssetValue(asset))}</td>
                     <td className="text-right">
                       <div className="flex justify-end gap-1">
-                        <button className="btn-ghost btn-icon" onClick={() => openEditModal(asset)} title="Edit">
+                        <button className="btn-ghost btn-icon" onClick={() => openEditModal(asset)} title="Edit" aria-label={`Edit ${asset.name}`}>
                           <Pencil size={15} style={{ color: 'var(--accent-primary)' }} />
                         </button>
-                        <button className="btn-ghost btn-icon" onClick={() => deleteAsset(asset.id)} title="Delete">
+                        <button className="btn-ghost btn-icon" onClick={() => setConfirmDelete(asset)} title="Delete" aria-label={`Delete ${asset.name}`}>
                           <Trash2 size={15} style={{ color: 'var(--danger)' }} />
                         </button>
                       </div>
@@ -296,13 +304,32 @@ const Assets = () => {
         </div>
       </div>
 
+      {/* Delete Confirm */}
+      {confirmDelete && (
+        <div className="confirm-overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'var(--danger-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem' }}>
+              <AlertTriangle size={22} style={{ color: 'var(--danger)' }} />
+            </div>
+            <h3 style={{ marginBottom: '0.5rem' }}>Delete Asset?</h3>
+            <p className="text-sm text-muted" style={{ marginBottom: '1.5rem' }}>
+              <strong>{confirmDelete.name}</strong> ({formatCurrency(getAssetValue(confirmDelete))}) will be permanently removed.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={handleDeleteConfirm} style={{ fontWeight: 600 }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add / Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingId ? 'Edit Asset' : 'Add New Asset'}</h2>
-              <button className="btn-ghost btn-icon" onClick={() => setShowModal(false)}>
+              <button className="btn-ghost btn-icon" onClick={() => setShowModal(false)} aria-label="Close modal">
                 <X size={20} />
               </button>
             </div>
@@ -315,7 +342,6 @@ const Assets = () => {
                 </select>
               </div>
 
-              {/* ── Commodity-specific form ── */}
               {isCommodity ? (
                 <>
                   <div className="form-group">
@@ -344,13 +370,11 @@ const Assets = () => {
                         Price / gram (INR)
                         {fetchingCommodityPrice && (
                           <span style={{ color: 'var(--info)', fontWeight: 400, marginLeft: '0.3rem' }}>
-                            <Loader size={12} style={{ display: 'inline', animation: 'pulse 1s ease infinite', verticalAlign: 'middle' }} /> fetching...
+                            <Loader size={12} style={{ display: 'inline', animation: 'spin 1s linear infinite', verticalAlign: 'middle' }} /> fetching...
                           </span>
                         )}
                         {!fetchingCommodityPrice && formData.currentPrice && formData.symbol && (
-                          <span style={{ color: 'var(--success)', fontWeight: 400, marginLeft: '0.3rem' }}>
-                            (live)
-                          </span>
+                          <span style={{ color: 'var(--success)', fontWeight: 400, marginLeft: '0.3rem' }}>(live)</span>
                         )}
                       </label>
                       <input className="form-control" type="number" step="any" required value={formData.currentPrice}
@@ -373,9 +397,7 @@ const Assets = () => {
                     Live price via GoldPriceZ. You can override the price manually if needed.
                   </p>
                 </>
-
               ) : isUnitBased(formData.type) ? (
-                /* ── Equity / MF / Crypto form ── */
                 <>
                   <div className="form-group">
                     <label className="form-label">
@@ -409,9 +431,7 @@ const Assets = () => {
                       <label className="form-label">
                         {formData.type === 'Mutual Fund' ? 'NAV (INR)' : formData.type === 'Crypto' ? 'Price (INR)' : 'Current Price (INR)'}
                         {formData.currentPrice && formData.symbol && (
-                          <span style={{ color: 'var(--success)', fontWeight: 400, marginLeft: '0.3rem' }}>
-                            (live)
-                          </span>
+                          <span style={{ color: 'var(--success)', fontWeight: 400, marginLeft: '0.3rem' }}>(live)</span>
                         )}
                       </label>
                       <input className="form-control" type="number" step="any" required value={formData.currentPrice}
@@ -430,7 +450,6 @@ const Assets = () => {
                   )}
                 </>
               ) : (
-                /* ── Flat value form (FD, NPS, PPF, PF) ── */
                 <>
                   <div className="form-group">
                     <label className="form-label">Asset Name</label>
