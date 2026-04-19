@@ -39,7 +39,8 @@ async function getSilverPricePerGram() {
 export async function searchAssets(query, type) {
   if (!query || query.length < 2) return [];
   try {
-    const url = `/api/yahoo-search/v1/finance/search?q=${encodeURIComponent(query)}&quotesCount=12&newsCount=0&listsCount=0`;
+    const searchQuery = type === 'Crypto' ? `${query} INR` : query;
+    const url = `/api/yahoo-search/v1/finance/search?q=${encodeURIComponent(searchQuery)}&quotesCount=12&newsCount=0&listsCount=0`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('Yahoo search failed');
     const data = await res.json();
@@ -59,7 +60,7 @@ export async function searchAssets(query, type) {
       })
       .map(q => ({
         symbol: q.symbol,
-        name: q.longname || q.shortname || q.symbol,
+        name: (q.longname || q.shortname || q.symbol).replace(/ INR$/i, ''),
         exchange: q.exchDisp || q.exchange,
         quoteType: q.quoteType,
       }));
