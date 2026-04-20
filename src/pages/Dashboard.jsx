@@ -1,31 +1,21 @@
 import React, { useMemo, useState, useCallback, memo } from 'react';
 import { useFinpera } from '../context/FinperaContext';
 import { UNIT_BASED_TYPES } from '../utils/dummyData';
+import { formatCurrency, formatCompact, formatCurrencyDecimal, formatNumber } from '../utils/financeCalculations';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { TrendingUp, Wallet, CreditCard, Activity, RefreshCw, Loader, X, ArrowUpRight, ArrowDownRight, Scale } from 'lucide-react';
+import { TrendingUp, Wallet, CreditCard, Activity, RefreshCw, Loader, X, ArrowUpRight, ArrowDownRight, Scale, ShieldCheck, Heart, PiggyBank, Target, BarChart3, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899', '#06b6d4', '#64748b'];
-
-const formatCurrency = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
-const formatPrice = (val) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
-const formatQty = (val) => new Intl.NumberFormat('en-IN').format(val);
 
 const formatLac = (val) => {
   if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
   if (val >= 100000) return `${(val / 100000).toFixed(2)} L`;
   if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
   return `${val}`;
-};
-
-const formatCompact = (val) => {
-  if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
-  if (val >= 100000) return `${(val / 100000).toFixed(2)} L`;
-  if (val >= 1000) return `${(val / 1000).toFixed(1)} K`;
-  return val.toFixed(0);
 };
 
 const ChartTooltip = memo(({ active, payload }) => {
@@ -38,8 +28,21 @@ const ChartTooltip = memo(({ active, payload }) => {
   );
 });
 
+const SCORE_COLORS = { high: '#10b981', medium: '#f59e0b', low: '#ef4444' };
+const getScoreColor = (score) => score >= 70 ? SCORE_COLORS.high : score >= 40 ? SCORE_COLORS.medium : SCORE_COLORS.low;
+const getScoreLabel = (score) => score >= 70 ? 'Healthy' : score >= 40 ? 'Needs Attention' : 'Critical';
+
+const COMPONENT_META = {
+  emergencyFund: { icon: PiggyBank, label: 'Emergency Fund' },
+  debtRatio: { icon: CreditCard, label: 'Debt Ratio' },
+  diversification: { icon: BarChart3, label: 'Diversification' },
+  insurance: { icon: ShieldCheck, label: 'Insurance' },
+  savingsRate: { icon: Wallet, label: 'Savings Rate' },
+  goalProgress: { icon: Target, label: 'Goal Progress' },
+};
+
 const Dashboard = () => {
-  const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, refreshPrices, refreshing, lastRefreshed } = useFinpera();
+  const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, refreshPrices, refreshing, lastRefreshed, healthScore } = useFinpera();
   const [refreshResult, setRefreshResult] = useState(null);
 
   const isUnitBased = (type) => UNIT_BASED_TYPES.includes(type);
@@ -48,11 +51,8 @@ const Dashboard = () => {
     return assets.reduce((acc, asset) => {
       const val = getAssetValue(asset);
       const existing = acc.find(a => a.name === asset.type);
-      if (existing) {
-        existing.value += val;
-      } else {
-        acc.push({ name: asset.type, value: val });
-      }
+      if (existing) existing.value += val;
+      else acc.push({ name: asset.type, value: val });
       return acc;
     }, []).sort((a, b) => b.value - a.value);
   }, [assets, getAssetValue]);
@@ -64,11 +64,7 @@ const Dashboard = () => {
   const allocationBarData = useMemo(() => {
     const total = assetAllocation.reduce((s, a) => s + a.value, 0);
     if (total === 0) return [];
-    return assetAllocation.map((a, i) => ({
-      ...a,
-      pct: (a.value / total * 100),
-      color: COLORS[i % COLORS.length],
-    }));
+    return assetAllocation.map((a, i) => ({ ...a, pct: (a.value / total * 100), color: COLORS[i % COLORS.length] }));
   }, [assetAllocation]);
 
   const handleRefresh = useCallback(async () => {
@@ -79,10 +75,7 @@ const Dashboard = () => {
   }, [refreshPrices]);
 
   const refreshableCount = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol).length;
-
-  const assetRatio = totalAssetsValue + totalLiabilitiesValue > 0
-    ? (totalAssetsValue / (totalAssetsValue + totalLiabilitiesValue)) * 100
-    : 100;
+  const assetRatio = totalAssetsValue + totalLiabilitiesValue > 0 ? (totalAssetsValue / (totalAssetsValue + totalLiabilitiesValue)) * 100 : 100;
 
   const renderCenterLabel = (props) => {
     const vb = props?.viewBox;
@@ -99,9 +92,10 @@ const Dashboard = () => {
     );
   };
 
+  const scoreColor = getScoreColor(healthScore.overall);
+
   return (
     <div>
-      {/* Header */}
       <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Financial Overview</h1>
@@ -128,15 +122,12 @@ const Dashboard = () => {
             {refreshResult.updated > 0 && `Updated ${refreshResult.updated} price${refreshResult.updated > 1 ? 's' : ''}.`}
             {refreshResult.failed > 0 && ` ${refreshResult.failed} failed.`}
           </span>
-          <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)} aria-label="Dismiss">
-            <X size={14} />
-          </button>
+          <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)} aria-label="Dismiss"><X size={14} /></button>
         </div>
       )}
 
-      {/* Hero Gradient Cards */}
+      {/* Hero Cards */}
       <div className="grid-hero mb-6">
-        {/* Net Worth */}
         <div className="gradient-card grd-indigo animate-slideUp stagger-1">
           <div className="flex justify-between items-start">
             <div>
@@ -144,12 +135,8 @@ const Dashboard = () => {
               <p className="card-value lg">{formatCurrency(netWorth)}</p>
               <div className="card-sub" style={{ marginTop: '0.75rem' }}>
                 <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
-                  <span className="flex items-center gap-1">
-                    <ArrowUpRight size={14} /> {formatCompact(totalAssetsValue)} assets
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <ArrowDownRight size={14} /> {formatCompact(totalLiabilitiesValue)} debt
-                  </span>
+                  <span className="flex items-center gap-1"><ArrowUpRight size={14} /> {formatCompact(totalAssetsValue)} assets</span>
+                  <span className="flex items-center gap-1"><ArrowDownRight size={14} /> {formatCompact(totalLiabilitiesValue)} debt</span>
                 </div>
               </div>
             </div>
@@ -160,13 +147,11 @@ const Dashboard = () => {
               <div style={{ width: `${assetRatio}%`, background: 'rgba(255,255,255,0.7)', borderRadius: '3px', transition: 'width 0.6s ease' }} />
             </div>
             <div className="flex justify-between" style={{ marginTop: '4px', fontSize: '0.7rem', opacity: 0.6 }}>
-              <span>Assets</span>
-              <span>Liabilities</span>
+              <span>Assets</span><span>Liabilities</span>
             </div>
           </div>
         </div>
 
-        {/* Total Assets */}
         <div className="gradient-card grd-emerald animate-slideUp stagger-2">
           <div className="flex justify-between items-start">
             <div>
@@ -178,7 +163,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Total Liabilities */}
         <div className="gradient-card grd-rose animate-slideUp stagger-3">
           <div className="flex justify-between items-start">
             <div>
@@ -195,25 +179,68 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Financial Health Score */}
+      <div className="glass-panel no-hover animate-slideUp stagger-4 mb-4">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-lg font-bold flex items-center gap-2">
+              <Zap size={20} style={{ color: scoreColor }} /> Financial Health Score
+            </h3>
+            <p className="text-xs text-muted">A comprehensive view of your financial wellness</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div style={{ position: 'relative', width: '64px', height: '64px' }}>
+              <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+                <circle cx="18" cy="18" r="16" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
+                <circle cx="18" cy="18" r="16" fill="none" stroke={scoreColor} strokeWidth="3"
+                  strokeDasharray={`${healthScore.overall} ${100 - healthScore.overall}`}
+                  strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
+              </svg>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '1rem', fontWeight: 700, color: scoreColor }}>{healthScore.overall}</span>
+              </div>
+            </div>
+            <span className="badge" style={{ background: `${scoreColor}18`, color: scoreColor }}>{getScoreLabel(healthScore.overall)}</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+          {Object.entries(healthScore.components).map(([key, comp]) => {
+            const meta = COMPONENT_META[key];
+            if (!meta) return null;
+            const Icon = meta.icon;
+            const barColor = comp.score >= 7 ? '#10b981' : comp.score >= 4 ? '#f59e0b' : '#ef4444';
+            return (
+              <div key={key} style={{ padding: '0.75rem', background: 'var(--bg-primary)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon size={14} style={{ color: barColor, flexShrink: 0 }} />
+                  <span className="text-xs font-medium truncate">{meta.label}</span>
+                  <span className="text-xs font-bold ml-auto" style={{ color: barColor }}>{comp.score}/10</span>
+                </div>
+                <div style={{ height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ width: `${comp.score * 10}%`, height: '100%', background: barColor, borderRadius: '2px', transition: 'width 0.5s ease' }} />
+                </div>
+                <p className="text-xs text-muted" style={{ marginTop: '4px', lineHeight: 1.3 }}>{comp.tip}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Allocation Bar */}
       {allocationBarData.length > 0 && (
-        <div className="glass-panel no-hover animate-slideUp stagger-4 mb-4" style={{ padding: '1.25rem 1.5rem' }}>
+        <div className="glass-panel no-hover animate-slideUp mb-4" style={{ padding: '1.25rem 1.5rem', animationDelay: '0.3s' }}>
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-sm font-bold" style={{ color: 'var(--text-secondary)' }}>Portfolio Allocation</h3>
             <Link to="/assets" className="text-xs" style={{ color: 'var(--accent-primary)' }}>View details</Link>
           </div>
           <div className="alloc-bar">
             {allocationBarData.map((seg, i) => (
-              <div
-                key={i}
-                className="alloc-bar-segment"
-                style={{ width: `${seg.pct}%`, background: seg.color }}
-                title={`${seg.name}: ${seg.pct.toFixed(1)}%`}
-              />
+              <div key={i} className="alloc-bar-segment" style={{ width: `${seg.pct}%`, background: seg.color }} title={`${seg.name}: ${seg.pct.toFixed(1)}%`} />
             ))}
           </div>
           <div className="flex flex-wrap gap-4 mt-3">
-            {allocationBarData.map((seg) => (
+            {allocationBarData.map(seg => (
               <div key={seg.name} className="flex items-center gap-2">
                 <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: seg.color, flexShrink: 0 }} />
                 <span className="text-xs text-muted">{seg.name}</span>
@@ -224,13 +251,12 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Charts Row */}
+      {/* Charts */}
       <div className="grid-2col mb-4">
-        {/* Donut Chart */}
-        <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.25s' }}>
+        <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.35s' }}>
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-bold">Asset Breakdown</h3>
-            <div className="stat-icon" style={{ background: 'rgba(99, 102, 241, 0.06)', color: 'var(--accent-primary)', width: '36px', height: '36px' }}>
+            <div className="stat-icon" style={{ background: 'rgba(99,102,241,0.06)', color: 'var(--accent-primary)', width: '36px', height: '36px' }}>
               <Activity size={18} />
             </div>
           </div>
@@ -238,19 +264,8 @@ const Dashboard = () => {
             <div style={{ width: '100%', height: 280 }}>
               <ResponsiveContainer>
                 <PieChart>
-                  <Pie
-                    data={assetAllocation}
-                    cx="50%" cy="50%"
-                    innerRadius={72} outerRadius={105}
-                    paddingAngle={3} dataKey="value"
-                    stroke="none"
-                    animationDuration={800} animationBegin={200}
-                    label={renderCenterLabel}
-                    labelLine={false}
-                  >
-                    {assetAllocation.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
+                  <Pie data={assetAllocation} cx="50%" cy="50%" innerRadius={72} outerRadius={105} paddingAngle={3} dataKey="value" stroke="none" animationDuration={800} animationBegin={200} label={renderCenterLabel} labelLine={false}>
+                    {assetAllocation.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
                   </Pie>
                   <Tooltip content={<ChartTooltip />} />
                 </PieChart>
@@ -264,11 +279,10 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/* Bar Chart */}
-        <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.3s' }}>
+        <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.4s' }}>
           <div className="flex justify-between items-center mb-3">
             <h3 className="text-lg font-bold">Value by Category</h3>
-            <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.06)', color: 'var(--success)', width: '36px', height: '36px' }}>
+            <div className="stat-icon" style={{ background: 'rgba(16,185,129,0.06)', color: 'var(--success)', width: '36px', height: '36px' }}>
               <Scale size={18} />
             </div>
           </div>
@@ -278,23 +292,17 @@ const Dashboard = () => {
                 <BarChart data={assetAllocation} layout="vertical" margin={{ top: 5, right: 60, left: 5, bottom: 5 }} barSize={16}>
                   <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="rgba(0,0,0,0.04)" />
                   <XAxis type="number" hide />
-                  <YAxis
-                    dataKey="name" type="category"
-                    width={85} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }}
-                    axisLine={false} tickLine={false}
-                  />
+                  <YAxis dataKey="name" type="category" width={85} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
                   <defs>
-                    <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
+                    <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
                       <stop offset="0%" stopColor="#6366f1" />
                       <stop offset="100%" stopColor="#a78bfa" />
                     </linearGradient>
                   </defs>
-                  <Bar dataKey="value" fill="url(#barGradient)" radius={[0, 8, 8, 0]} animationDuration={800}
+                  <Bar dataKey="value" fill="url(#barGrad)" radius={[0, 8, 8, 0]} animationDuration={800}
                     label={({ x, y, width, value, height }) => (
-                      <text x={x + width + 6} y={y + height / 2} dy={4} fontSize={11} fontWeight={600} fill="var(--text-secondary)">
-                        {formatLac(value)}
-                      </text>
+                      <text x={x + width + 6} y={y + height / 2} dy={4} fontSize={11} fontWeight={600} fill="var(--text-secondary)">{formatLac(value)}</text>
                     )}
                   />
                 </BarChart>
@@ -310,7 +318,7 @@ const Dashboard = () => {
       </div>
 
       {/* Top Holdings */}
-      <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.35s' }}>
+      <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.45s' }}>
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-lg font-bold">Top Holdings</h3>
           <Link to="/assets" className="btn btn-secondary btn-sm">View all</Link>
@@ -345,12 +353,8 @@ const Dashboard = () => {
                         </div>
                       </td>
                       <td><span className="chip">{asset.type}</span></td>
-                      <td className="text-right">
-                        {ub && asset.qty ? formatQty(asset.qty) : <span className="text-muted">&mdash;</span>}
-                      </td>
-                      <td className="text-right">
-                        {ub && asset.currentPrice ? formatPrice(asset.currentPrice) : <span className="text-muted">&mdash;</span>}
-                      </td>
+                      <td className="text-right">{ub && asset.qty ? formatNumber(asset.qty) : <span className="text-muted">&mdash;</span>}</td>
+                      <td className="text-right">{ub && asset.currentPrice ? formatCurrencyDecimal(asset.currentPrice) : <span className="text-muted">&mdash;</span>}</td>
                       <td className="text-right text-strong font-medium">{formatCurrency(val)}</td>
                       <td>
                         <div className="flex items-center gap-2">

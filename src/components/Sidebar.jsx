@@ -1,23 +1,57 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, PieChart, CreditCard, ArrowLeftRight, Menu, X } from 'lucide-react';
+import {
+  Home, PieChart, CreditCard, ArrowLeftRight, Menu, X,
+  ArrowUpDown, Receipt, Target, Calculator, Shield,
+  BarChart3, MessageSquare, Settings,
+} from 'lucide-react';
 import './Sidebar.css';
 
-const navItems = [
-  { to: '/dashboard', icon: Home, label: 'Dashboard' },
-  { to: '/assets', icon: PieChart, label: 'Assets' },
-  { to: '/liabilities', icon: CreditCard, label: 'Liabilities' },
-  { to: '/import', icon: ArrowLeftRight, label: 'Import / Export' },
+const navSections = [
+  {
+    label: null,
+    items: [
+      { to: '/dashboard', icon: Home, label: 'Dashboard' },
+    ],
+  },
+  {
+    label: 'Portfolio',
+    items: [
+      { to: '/assets', icon: PieChart, label: 'Assets' },
+      { to: '/liabilities', icon: CreditCard, label: 'Liabilities' },
+      { to: '/transactions', icon: ArrowUpDown, label: 'Transactions' },
+    ],
+  },
+  {
+    label: 'Planning',
+    items: [
+      { to: '/budget', icon: Receipt, label: 'Budget' },
+      { to: '/goals', icon: Target, label: 'Goals' },
+      { to: '/tax', icon: Calculator, label: 'Tax Planner' },
+      { to: '/insurance', icon: Shield, label: 'Insurance' },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { to: '/advisor', icon: MessageSquare, label: 'AI Advisor' },
+      { to: '/reports', icon: BarChart3, label: 'Reports' },
+    ],
+  },
+  {
+    label: null,
+    items: [
+      { to: '/import', icon: ArrowLeftRight, label: 'Import / Export' },
+      { to: '/settings', icon: Settings, label: 'Settings' },
+    ],
+  },
 ];
 
 const Sidebar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
-
+  useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -27,7 +61,6 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* Mobile top bar */}
       <div className="mobile-header">
         <div className="logo-mobile">
           <div className="logo-mobile-icon">FP</div>
@@ -38,14 +71,8 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* Overlay */}
-      <div
-        className={`sidebar-overlay ${mobileOpen ? 'open' : ''}`}
-        onClick={() => setMobileOpen(false)}
-        aria-hidden="true"
-      />
+      <div className={`sidebar-overlay ${mobileOpen ? 'open' : ''}`} onClick={() => setMobileOpen(false)} aria-hidden="true" />
 
-      {/* Sidebar */}
       <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo-icon">FP</div>
@@ -56,15 +83,20 @@ const Sidebar = () => {
         </div>
 
         <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-            </NavLink>
+          {navSections.map((section, si) => (
+            <div key={si} className="nav-section">
+              {section.label && <p className="nav-section-label">{section.label}</p>}
+              {section.items.map(({ to, icon: Icon, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                >
+                  <Icon size={18} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
 

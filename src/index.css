@@ -107,8 +107,13 @@ select:focus:not(:focus-visible) {
     margin-left: 0;
     padding: 1.25rem;
     padding-top: 4.5rem;
-    padding-bottom: 2rem;
+    padding-bottom: 5rem;
   }
+}
+
+.chat-sidebar-desktop { display: flex; }
+@media (max-width: 768px) {
+  .chat-sidebar-desktop { display: none; }
 }
 
 /* ── Animations ── */
