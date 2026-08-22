@@ -6,10 +6,12 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { TrendingUp, Wallet, CreditCard, Activity, RefreshCw, Loader, X, ArrowUpRight, ArrowDownRight, Scale, ShieldCheck, Heart, PiggyBank, Target, BarChart3, Zap } from 'lucide-react';
+import { TrendingUp, Wallet, CreditCard, Activity, X, ArrowUpRight, ArrowDownRight, Scale, PiggyBank, Target, BarChart3, Zap, ShieldCheck, PieChart as PieIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import ExpandablePanel from '../components/ExpandablePanel';
+import FloatingActions from '../components/FloatingActions';
 
-const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#14b8a6', '#f97316', '#ec4899', '#06b6d4', '#64748b'];
+const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#06b6d4', '#f97316', '#64748b'];
 
 const formatLac = (val) => {
   if (val >= 10000000) return `${(val / 10000000).toFixed(2)} Cr`;
@@ -21,7 +23,7 @@ const formatLac = (val) => {
 const ChartTooltip = memo(({ active, payload }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px', padding: '0.75rem 1rem', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
+    <div style={{ background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(8px)', border: '1px solid rgba(0,0,0,0.06)', borderRadius: '12px', padding: '0.75rem 1rem', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
       <p style={{ fontSize: '0.85rem', fontWeight: 500, marginBottom: '2px', color: 'var(--text-primary)' }}>{payload[0].name || payload[0].payload?.name}</p>
       <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(payload[0].value)}</p>
     </div>
@@ -40,6 +42,20 @@ const COMPONENT_META = {
   savingsRate: { icon: Wallet, label: 'Savings Rate' },
   goalProgress: { icon: Target, label: 'Goal Progress' },
 };
+
+const ScoreRing = ({ score, color, size = 52 }) => (
+  <div className="health-score-ring" style={{ width: size, height: size }}>
+    <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
+      <circle cx="18" cy="18" r="16" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
+      <circle cx="18" cy="18" r="16" fill="none" stroke={color} strokeWidth="3"
+        strokeDasharray={`${score} ${100 - score}`}
+        strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
+    </svg>
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ fontSize: size > 52 ? '1rem' : '0.85rem', fontWeight: 700, color }}>{score}</span>
+    </div>
+  </div>
+);
 
 const Dashboard = () => {
   const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, refreshPrices, refreshing, lastRefreshed, healthScore } = useFinpera();
@@ -76,6 +92,7 @@ const Dashboard = () => {
 
   const refreshableCount = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol).length;
   const assetRatio = totalAssetsValue + totalLiabilitiesValue > 0 ? (totalAssetsValue / (totalAssetsValue + totalLiabilitiesValue)) * 100 : 100;
+  const scoreColor = getScoreColor(healthScore.overall);
 
   const renderCenterLabel = (props) => {
     const vb = props?.viewBox;
@@ -92,28 +109,18 @@ const Dashboard = () => {
     );
   };
 
-  const scoreColor = getScoreColor(healthScore.overall);
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
+    <div className="dashboard-page">
+      <div className="flex justify-between items-center mb-5" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
           <h1>Financial Overview</h1>
           <p>Your portfolio at a glance</p>
         </div>
-        <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
-          {lastRefreshed && (
-            <span className="text-xs text-muted">
-              Updated {new Date(lastRefreshed).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
-            </span>
-          )}
-          {refreshableCount > 0 && (
-            <button className="btn btn-secondary" onClick={handleRefresh} disabled={refreshing}>
-              {refreshing ? <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={16} />}
-              {refreshing ? 'Updating...' : 'Refresh'}
-            </button>
-          )}
-        </div>
+        {lastRefreshed && (
+          <span className="text-xs text-muted" style={{ background: 'rgba(255,255,255,0.7)', padding: '0.35rem 0.75rem', borderRadius: '999px', border: '1px solid var(--border-color)' }}>
+            Updated {new Date(lastRefreshed).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+          </span>
+        )}
       </div>
 
       {refreshResult && (
@@ -126,17 +133,17 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Hero Cards */}
-      <div className="grid-hero mb-6">
-        <div className="gradient-card grd-indigo animate-slideUp stagger-1">
+      {/* Hero Cards — always visible, floating animation */}
+      <div className="grid-hero mb-5">
+        <div className="gradient-card grd-indigo floating-card animate-slideUp stagger-1">
           <div className="flex justify-between items-start">
             <div>
               <p className="card-label">Net Worth</p>
               <p className="card-value lg">{formatCurrency(netWorth)}</p>
               <div className="card-sub" style={{ marginTop: '0.75rem' }}>
                 <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
-                  <span className="flex items-center gap-1"><ArrowUpRight size={14} /> {formatCompact(totalAssetsValue)} assets</span>
-                  <span className="flex items-center gap-1"><ArrowDownRight size={14} /> {formatCompact(totalLiabilitiesValue)} debt</span>
+                  <span className="flex items-center gap-1"><ArrowUpRight size={14} /> {formatCompact(totalAssetsValue)}</span>
+                  <span className="flex items-center gap-1"><ArrowDownRight size={14} /> {formatCompact(totalLiabilitiesValue)}</span>
                 </div>
               </div>
             </div>
@@ -144,26 +151,23 @@ const Dashboard = () => {
           </div>
           <div style={{ marginTop: '1rem' }}>
             <div style={{ display: 'flex', height: '6px', borderRadius: '3px', overflow: 'hidden', background: 'rgba(255,255,255,0.15)' }}>
-              <div style={{ width: `${assetRatio}%`, background: 'rgba(255,255,255,0.7)', borderRadius: '3px', transition: 'width 0.6s ease' }} />
-            </div>
-            <div className="flex justify-between" style={{ marginTop: '4px', fontSize: '0.7rem', opacity: 0.6 }}>
-              <span>Assets</span><span>Liabilities</span>
+              <div style={{ width: `${assetRatio}%`, background: 'rgba(255,255,255,0.85)', borderRadius: '3px', transition: 'width 0.6s ease' }} />
             </div>
           </div>
         </div>
 
-        <div className="gradient-card grd-emerald animate-slideUp stagger-2">
+        <div className="gradient-card grd-emerald floating-card animate-slideUp stagger-2">
           <div className="flex justify-between items-start">
             <div>
               <p className="card-label">Total Assets</p>
               <p className="card-value">{formatCurrency(totalAssetsValue)}</p>
-              <p className="card-sub">{assets.length} investment{assets.length !== 1 ? 's' : ''} tracked</p>
+              <p className="card-sub">{assets.length} investment{assets.length !== 1 ? 's' : ''}</p>
             </div>
             <div className="card-icon"><Wallet size={22} /></div>
           </div>
         </div>
 
-        <div className="gradient-card grd-rose animate-slideUp stagger-3">
+        <div className="gradient-card grd-rose floating-card animate-slideUp stagger-3">
           <div className="flex justify-between items-start">
             <div>
               <p className="card-label">Total Liabilities</p>
@@ -171,7 +175,7 @@ const Dashboard = () => {
               {totalMonthlyEMI > 0 ? (
                 <p className="card-sub">{formatCurrency(totalMonthlyEMI)}/mo EMI</p>
               ) : (
-                <p className="card-sub">{liabilities.length} active loan{liabilities.length !== 1 ? 's' : ''}</p>
+                <p className="card-sub">{liabilities.length} loan{liabilities.length !== 1 ? 's' : ''}</p>
               )}
             </div>
             <div className="card-icon"><CreditCard size={22} /></div>
@@ -179,32 +183,23 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Financial Health Score */}
-      <div className="glass-panel no-hover animate-slideUp stagger-4 mb-4">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h3 className="text-lg font-bold flex items-center gap-2">
-              <Zap size={20} style={{ color: scoreColor }} /> Financial Health Score
-            </h3>
-            <p className="text-xs text-muted">A comprehensive view of your financial wellness</p>
+      {/* Health Score — collapsed by default, expand for details */}
+      <ExpandablePanel
+        className="mb-4 animate-slideUp stagger-4"
+        title="Financial Health Score"
+        subtitle={`${getScoreLabel(healthScore.overall)} · tap to see breakdown`}
+        icon={Zap}
+        iconColor={scoreColor}
+        accent={`linear-gradient(90deg, ${scoreColor}, transparent)`}
+        defaultOpen={false}
+        badge={
+          <div className="flex items-center gap-2">
+            <ScoreRing score={healthScore.overall} color={scoreColor} />
+            <span className="health-chip" style={{ background: `${scoreColor}18`, color: scoreColor }}>{getScoreLabel(healthScore.overall)}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <div style={{ position: 'relative', width: '64px', height: '64px' }}>
-              <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-                <circle cx="18" cy="18" r="16" fill="none" stroke="var(--bg-tertiary)" strokeWidth="3" />
-                <circle cx="18" cy="18" r="16" fill="none" stroke={scoreColor} strokeWidth="3"
-                  strokeDasharray={`${healthScore.overall} ${100 - healthScore.overall}`}
-                  strokeLinecap="round" style={{ transition: 'stroke-dasharray 0.8s ease' }} />
-              </svg>
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '1rem', fontWeight: 700, color: scoreColor }}>{healthScore.overall}</span>
-              </div>
-            </div>
-            <span className="badge" style={{ background: `${scoreColor}18`, color: scoreColor }}>{getScoreLabel(healthScore.overall)}</span>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+        }
+      >
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.65rem', paddingTop: '0.5rem' }}>
           {Object.entries(healthScore.components).map(([key, comp]) => {
             const meta = COMPONENT_META[key];
             if (!meta) return null;
@@ -220,163 +215,208 @@ const Dashboard = () => {
                 <div style={{ height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{ width: `${comp.score * 10}%`, height: '100%', background: barColor, borderRadius: '2px', transition: 'width 0.5s ease' }} />
                 </div>
-                <p className="text-xs text-muted" style={{ marginTop: '4px', lineHeight: 1.3 }}>{comp.tip}</p>
               </div>
             );
           })}
         </div>
-      </div>
+      </ExpandablePanel>
 
-      {/* Allocation Bar */}
+      {/* Portfolio Allocation — collapsed, expand for legend */}
       {allocationBarData.length > 0 && (
-        <div className="glass-panel no-hover animate-slideUp mb-4" style={{ padding: '1.25rem 1.5rem', animationDelay: '0.3s' }}>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-sm font-bold" style={{ color: 'var(--text-secondary)' }}>Portfolio Allocation</h3>
-            <Link to="/assets" className="text-xs" style={{ color: 'var(--accent-primary)' }}>View details</Link>
-          </div>
-          <div className="alloc-bar">
+        <ExpandablePanel
+          className="mb-4 animate-slideUp"
+          title="Portfolio Allocation"
+          subtitle={`${allocationBarData.length} asset classes`}
+          icon={PieIcon}
+          iconColor="#6366f1"
+          accent="linear-gradient(90deg, #6366f1, #ec4899)"
+          defaultOpen={false}
+          badge={
+            <div className="alloc-bar" style={{ width: '120px', height: '8px' }}>
+              {allocationBarData.map((seg, i) => (
+                <div key={i} className="alloc-bar-segment" style={{ width: `${seg.pct}%`, background: seg.color }} />
+              ))}
+            </div>
+          }
+        >
+          <div className="alloc-bar mb-3" style={{ height: '12px' }}>
             {allocationBarData.map((seg, i) => (
               <div key={i} className="alloc-bar-segment" style={{ width: `${seg.pct}%`, background: seg.color }} title={`${seg.name}: ${seg.pct.toFixed(1)}%`} />
             ))}
           </div>
-          <div className="flex flex-wrap gap-4 mt-3">
+          <div className="flex flex-wrap gap-3">
             {allocationBarData.map(seg => (
-              <div key={seg.name} className="flex items-center gap-2">
-                <div style={{ width: '10px', height: '10px', borderRadius: '3px', background: seg.color, flexShrink: 0 }} />
-                <span className="text-xs text-muted">{seg.name}</span>
-                <span className="text-xs font-medium">{seg.pct.toFixed(1)}%</span>
+              <div key={seg.name} className="flex items-center gap-2" style={{ background: 'var(--bg-primary)', padding: '0.35rem 0.65rem', borderRadius: '999px', border: '1px solid var(--border-color)' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: seg.color, flexShrink: 0 }} />
+                <span className="text-xs">{seg.name}</span>
+                <span className="text-xs font-bold" style={{ color: seg.color }}>{seg.pct.toFixed(1)}%</span>
               </div>
             ))}
           </div>
-        </div>
+          <div className="mt-3">
+            <Link to="/assets" className="text-xs font-medium" style={{ color: 'var(--accent-primary)' }}>View all assets →</Link>
+          </div>
+        </ExpandablePanel>
       )}
 
-      {/* Charts */}
-      <div className="grid-2col mb-4">
-        <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.35s' }}>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-bold">Asset Breakdown</h3>
-            <div className="stat-icon" style={{ background: 'rgba(99,102,241,0.06)', color: 'var(--accent-primary)', width: '36px', height: '36px' }}>
-              <Activity size={18} />
-            </div>
+      {/* Charts — expandable analytics section */}
+      <ExpandablePanel
+        className="mb-4 animate-slideUp"
+        title="Analytics"
+        subtitle="Asset breakdown & value by category"
+        icon={Activity}
+        iconColor="#10b981"
+        accent="linear-gradient(90deg, #10b981, #06b6d4)"
+        defaultOpen={true}
+      >
+        <div className="grid-2col" style={{ gap: '1rem', paddingTop: '0.5rem' }}>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--border-radius-md)', padding: '1rem', border: '1px solid var(--border-color)' }}>
+            <h4 className="text-sm font-bold mb-2">Asset Breakdown</h4>
+            {assetAllocation.length > 0 ? (
+              <div style={{ width: '100%', height: 240 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={assetAllocation} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={4} dataKey="value" stroke="none" animationDuration={800} label={renderCenterLabel} labelLine={false}>
+                      {assetAllocation.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="empty-state" style={{ height: 200, padding: '1.5rem' }}>
+                <p className="text-muted text-sm">Add assets to see breakdown.</p>
+              </div>
+            )}
           </div>
-          {assetAllocation.length > 0 ? (
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={assetAllocation} cx="50%" cy="50%" innerRadius={72} outerRadius={105} paddingAngle={3} dataKey="value" stroke="none" animationDuration={800} animationBegin={200} label={renderCenterLabel} labelLine={false}>
-                    {assetAllocation.map((_, i) => <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="empty-state" style={{ height: 280 }}>
-              <div className="empty-state-icon"><Activity size={24} /></div>
-              <p className="text-muted text-sm">Add assets to see breakdown.</p>
-            </div>
-          )}
-        </div>
 
-        <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.4s' }}>
-          <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-bold">Value by Category</h3>
-            <div className="stat-icon" style={{ background: 'rgba(16,185,129,0.06)', color: 'var(--success)', width: '36px', height: '36px' }}>
-              <Scale size={18} />
-            </div>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: 'var(--border-radius-md)', padding: '1rem', border: '1px solid var(--border-color)' }}>
+            <h4 className="text-sm font-bold mb-2">Value by Category</h4>
+            {assetAllocation.length > 0 ? (
+              <div style={{ width: '100%', height: 240 }}>
+                <ResponsiveContainer>
+                  <BarChart data={assetAllocation} layout="vertical" margin={{ top: 5, right: 55, left: 5, bottom: 5 }} barSize={14}>
+                    <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="rgba(0,0,0,0.04)" />
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
+                    <defs>
+                      <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#6366f1" />
+                        <stop offset="100%" stopColor="#ec4899" />
+                      </linearGradient>
+                    </defs>
+                    <Bar dataKey="value" fill="url(#barGrad)" radius={[0, 6, 6, 0]} animationDuration={800}
+                      label={({ x, y, width, value, height }) => (
+                        <text x={x + width + 4} y={y + height / 2} dy={4} fontSize={10} fontWeight={600} fill="var(--text-secondary)">{formatLac(value)}</text>
+                      )}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="empty-state" style={{ height: 200, padding: '1.5rem' }}>
+                <p className="text-muted text-sm">No categories to display.</p>
+              </div>
+            )}
           </div>
-          {assetAllocation.length > 0 ? (
-            <div style={{ width: '100%', height: 280 }}>
-              <ResponsiveContainer>
-                <BarChart data={assetAllocation} layout="vertical" margin={{ top: 5, right: 60, left: 5, bottom: 5 }} barSize={16}>
-                  <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="rgba(0,0,0,0.04)" />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" width={85} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.04)' }} />
-                  <defs>
-                    <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor="#6366f1" />
-                      <stop offset="100%" stopColor="#a78bfa" />
-                    </linearGradient>
-                  </defs>
-                  <Bar dataKey="value" fill="url(#barGrad)" radius={[0, 8, 8, 0]} animationDuration={800}
-                    label={({ x, y, width, value, height }) => (
-                      <text x={x + width + 6} y={y + height / 2} dy={4} fontSize={11} fontWeight={600} fill="var(--text-secondary)">{formatLac(value)}</text>
-                    )}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="empty-state" style={{ height: 280 }}>
-              <div className="empty-state-icon"><Scale size={24} /></div>
-              <p className="text-muted text-sm">No categories to display.</p>
-            </div>
-          )}
         </div>
-      </div>
+      </ExpandablePanel>
 
-      {/* Top Holdings */}
-      <div className="glass-panel no-hover animate-slideUp" style={{ animationDelay: '0.45s' }}>
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg font-bold">Top Holdings</h3>
-          <Link to="/assets" className="btn btn-secondary btn-sm">View all</Link>
-        </div>
+      {/* Top Holdings — compact preview, expand for full table */}
+      <ExpandablePanel
+        className="animate-slideUp"
+        title="Top Holdings"
+        subtitle={topAssets.length > 0 ? `${topAssets.length} largest positions` : 'No assets yet'}
+        icon={Scale}
+        iconColor="#8b5cf6"
+        accent="linear-gradient(90deg, #8b5cf6, #6366f1)"
+        defaultOpen={false}
+        badge={
+          topAssets.length > 0 ? (
+            <span className="text-xs font-bold" style={{ color: 'var(--accent-primary)' }}>{formatCompact(getAssetValue(topAssets[0]))}</span>
+          ) : null
+        }
+      >
         {topAssets.length > 0 ? (
-          <div className="table-container">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Type</th>
-                  <th className="text-right">Qty</th>
-                  <th className="text-right">Price</th>
-                  <th className="text-right">Value</th>
-                  <th style={{ width: '100px' }}>Share</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topAssets.map((asset, idx) => {
-                  const ub = isUnitBased(asset.type);
-                  const val = getAssetValue(asset);
-                  const share = totalAssetsValue > 0 ? (val / totalAssetsValue * 100) : 0;
-                  return (
-                    <tr key={asset.id}>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <span className="row-number" style={{ background: `${COLORS[idx % COLORS.length]}15`, color: COLORS[idx % COLORS.length] }}>{idx + 1}</span>
-                          <div>
+          <>
+            {/* Compact preview always visible when expanded */}
+            <div className="mb-3">
+              {topAssets.slice(0, 3).map((asset, idx) => {
+                const val = getAssetValue(asset);
+                const share = totalAssetsValue > 0 ? (val / totalAssetsValue * 100) : 0;
+                return (
+                  <div key={asset.id} className="holding-row-compact">
+                    <span className="row-number" style={{ background: `${COLORS[idx % COLORS.length]}18`, color: COLORS[idx % COLORS.length], width: 24, height: 24, fontSize: '0.68rem' }}>{idx + 1}</span>
+                    <div className="flex-1 truncate">
+                      <span className="text-sm font-medium">{asset.name}</span>
+                      <span className="text-xs text-muted" style={{ marginLeft: '0.5rem' }}>{asset.type}</span>
+                    </div>
+                    <span className="text-sm font-bold">{formatCompact(val)}</span>
+                    <span className="text-xs" style={{ color: COLORS[idx % COLORS.length], minWidth: '40px', textAlign: 'right' }}>{share.toFixed(1)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th className="text-right">Qty</th>
+                    <th className="text-right">Price</th>
+                    <th className="text-right">Value</th>
+                    <th style={{ width: '90px' }}>Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topAssets.map((asset, idx) => {
+                    const ub = isUnitBased(asset.type);
+                    const val = getAssetValue(asset);
+                    const share = totalAssetsValue > 0 ? (val / totalAssetsValue * 100) : 0;
+                    return (
+                      <tr key={asset.id}>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className="row-number" style={{ background: `${COLORS[idx % COLORS.length]}15`, color: COLORS[idx % COLORS.length] }}>{idx + 1}</span>
                             <span className="font-medium text-strong">{asset.name}</span>
-                            {asset.symbol && <span className="text-xs text-muted" style={{ display: 'block', marginTop: '1px' }}>{asset.symbol}</span>}
                           </div>
-                        </div>
-                      </td>
-                      <td><span className="chip">{asset.type}</span></td>
-                      <td className="text-right">{ub && asset.qty ? formatNumber(asset.qty) : <span className="text-muted">&mdash;</span>}</td>
-                      <td className="text-right">{ub && asset.currentPrice ? formatCurrencyDecimal(asset.currentPrice) : <span className="text-muted">&mdash;</span>}</td>
-                      <td className="text-right text-strong font-medium">{formatCurrency(val)}</td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <div style={{ flex: 1, height: '5px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${share}%`, height: '100%', background: COLORS[idx % COLORS.length], borderRadius: '3px', transition: 'width 0.5s ease' }} />
+                        </td>
+                        <td><span className="chip">{asset.type}</span></td>
+                        <td className="text-right">{ub && asset.qty ? formatNumber(asset.qty) : <span className="text-muted">&mdash;</span>}</td>
+                        <td className="text-right">{ub && asset.currentPrice ? formatCurrencyDecimal(asset.currentPrice) : <span className="text-muted">&mdash;</span>}</td>
+                        <td className="text-right text-strong font-medium">{formatCurrency(val)}</td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <div style={{ flex: 1, height: '4px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${share}%`, height: '100%', background: COLORS[idx % COLORS.length], borderRadius: '3px' }} />
+                            </div>
+                            <span className="text-xs text-muted">{share.toFixed(1)}%</span>
                           </div>
-                          <span className="text-xs text-muted" style={{ minWidth: '36px', textAlign: 'right' }}>{share.toFixed(1)}%</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3">
+              <Link to="/assets" className="btn btn-secondary btn-sm">View all assets</Link>
+            </div>
+          </>
         ) : (
-          <div className="empty-state" style={{ height: 200 }}>
-            <div className="empty-state-icon"><Wallet size={24} /></div>
+          <div className="empty-state" style={{ height: 120, padding: '1rem' }}>
             <p className="text-muted text-sm">No assets recorded yet.</p>
           </div>
         )}
-      </div>
+      </ExpandablePanel>
+
+      <FloatingActions
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        showRefresh={refreshableCount > 0}
+      />
     </div>
   );
 };

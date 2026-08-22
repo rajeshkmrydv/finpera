@@ -11,6 +11,7 @@
   z-index: 10;
   overflow-y: auto;
   overflow-x: hidden;
+  box-shadow: 4px 0 24px rgba(15, 23, 42, 0.15);
 }
 
 .sidebar::before {
