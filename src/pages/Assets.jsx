@@ -3,6 +3,7 @@ import { useFinpera } from '../context/FinperaContext';
 import { UNIT_BASED_TYPES, ASSET_TYPES } from '../utils/dummyData';
 import { fetchCurrentPrice } from '../utils/priceService';
 import AssetSearch from '../components/AssetSearch';
+import DailyChangeBadge from '../components/DailyChange';
 import { Plus, Trash2, Pencil, X, Search, Filter, RefreshCw, Loader, AlertTriangle } from 'lucide-react';
 
 const COMMODITY_PRESETS = [
@@ -15,7 +16,7 @@ const formatPrice = (val) => new Intl.NumberFormat('en-IN', { style: 'currency',
 const formatQty = (val) => new Intl.NumberFormat('en-IN').format(val);
 
 const Assets = () => {
-  const { assets, addAsset, updateAsset, deleteAsset, getAssetValue, refreshPrices, refreshing, lastRefreshed } = useFinpera();
+  const { assets, addAsset, updateAsset, deleteAsset, getAssetValue, getAssetDailyChange, refreshPrices, refreshing, lastRefreshed } = useFinpera();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [formData, setFormData] = useState({ name: '', type: 'Equity', qty: '', currentPrice: '', value: '', category: '', symbol: '' });
@@ -243,6 +244,7 @@ const Assets = () => {
                 <th>Category</th>
                 <th className="text-right">Qty</th>
                 <th className="text-right">Current Price</th>
+                <th className="text-right">Daily Change</th>
                 <th className="text-right">Total Value</th>
                 <th className="text-right" style={{ width: '90px' }}>Actions</th>
               </tr>
@@ -273,6 +275,24 @@ const Assets = () => {
                         ? <>{formatPrice(asset.currentPrice)}{asset.type === 'Commodity' ? <span className="text-xs text-muted">/g</span> : null}</>
                         : <span className="text-muted">&mdash;</span>}
                     </td>
+                    <td className="text-right">
+                      {(() => {
+                        if (!ub || !asset.symbol) return <span className="text-muted">&mdash;</span>;
+                        if (refreshing) return <Loader size={13} style={{ animation: 'spin 1s linear infinite', color: 'var(--text-tertiary)' }} />;
+                        const dc = getAssetDailyChange(asset);
+                        return dc ? (
+                          <DailyChangeBadge
+                            changePercent={dc.changePercent}
+                            change={dc.change}
+                            valueChange={dc.valueChange}
+                            showValueChange
+                            size="sm"
+                          />
+                        ) : (
+                          <span className="text-muted text-xs">—</span>
+                        );
+                      })()}
+                    </td>
                     <td className="text-right text-strong font-medium">{formatCurrency(getAssetValue(asset))}</td>
                     <td className="text-right">
                       <div className="flex justify-end gap-1">
@@ -289,7 +309,7 @@ const Assets = () => {
               })}
               {filteredAssets.length === 0 && (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="empty-state">
                       <div className="empty-state-icon"><Filter size={24} /></div>
                       <p className="text-muted">

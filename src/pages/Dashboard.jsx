@@ -6,10 +6,11 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { TrendingUp, Wallet, CreditCard, Activity, X, ArrowUpRight, ArrowDownRight, Scale, PiggyBank, Target, BarChart3, Zap, ShieldCheck, PieChart as PieIcon } from 'lucide-react';
+import { TrendingUp, Wallet, CreditCard, Activity, X, ArrowUpRight, ArrowDownRight, Scale, PiggyBank, Target, BarChart3, Zap, ShieldCheck, PieChart as PieIcon, TrendingDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ExpandablePanel from '../components/ExpandablePanel';
 import FloatingActions from '../components/FloatingActions';
+import DailyChangeBadge from '../components/DailyChange';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#14b8a6', '#8b5cf6', '#06b6d4', '#f97316', '#64748b'];
 
@@ -58,7 +59,7 @@ const ScoreRing = ({ score, color, size = 52 }) => (
 );
 
 const Dashboard = () => {
-  const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, refreshPrices, refreshing, lastRefreshed, healthScore } = useFinpera();
+  const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, getAssetDailyChange, totalDailyValueChange, refreshPrices, refreshing, lastRefreshed, healthScore } = useFinpera();
   const [refreshResult, setRefreshResult] = useState(null);
 
   const isUnitBased = (type) => UNIT_BASED_TYPES.includes(type);
@@ -93,6 +94,14 @@ const Dashboard = () => {
   const refreshableCount = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol).length;
   const assetRatio = totalAssetsValue + totalLiabilitiesValue > 0 ? (totalAssetsValue / (totalAssetsValue + totalLiabilitiesValue)) * 100 : 100;
   const scoreColor = getScoreColor(healthScore.overall);
+
+  /** Sorted movers: assets with live daily-change data, ranked by |valueChange| desc */
+  const movers = useMemo(() => {
+    return assets
+      .map(a => ({ asset: a, dc: getAssetDailyChange(a) }))
+      .filter(({ dc }) => dc && dc.changePercent != null)
+      .sort((a, b) => Math.abs(b.dc.valueChange) - Math.abs(a.dc.valueChange));
+  }, [assets, getAssetDailyChange]);
 
   const renderCenterLabel = (props) => {
     const vb = props?.viewBox;
@@ -145,6 +154,18 @@ const Dashboard = () => {
                   <span className="flex items-center gap-1"><ArrowUpRight size={14} /> {formatCompact(totalAssetsValue)}</span>
                   <span className="flex items-center gap-1"><ArrowDownRight size={14} /> {formatCompact(totalLiabilitiesValue)}</span>
                 </div>
+                {totalDailyValueChange !== 0 && (
+                  <div style={{ marginTop: '0.4rem' }}>
+                    <DailyChangeBadge
+                      valueChange={totalDailyValueChange}
+                      changePercent={totalAssetsValue > 0 ? (totalDailyValueChange / (totalAssetsValue - totalDailyValueChange)) * 100 : null}
+                      showValueChange
+                      size="sm"
+                      className=""
+                    />
+                    <span style={{ fontSize: '0.72rem', opacity: 0.7, marginLeft: '0.35rem' }}>today</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="card-icon"><TrendingUp size={22} /></div>
@@ -220,6 +241,71 @@ const Dashboard = () => {
           })}
         </div>
       </ExpandablePanel>
+
+      {/* Today's Movers */}
+      {movers.length > 0 && (
+        <ExpandablePanel
+          className="mb-4 animate-slideUp"
+          title="Today's Movers"
+          subtitle={`${movers.length} asset${movers.length > 1 ? 's' : ''} with live daily data`}
+          icon={movers.some(m => m.dc.valueChange > 0) ? TrendingUp : TrendingDown}
+          iconColor={totalDailyValueChange >= 0 ? '#10b981' : '#ef4444'}
+          accent={`linear-gradient(90deg, ${totalDailyValueChange >= 0 ? '#10b981' : '#ef4444'}, transparent)`}
+          defaultOpen={true}
+          badge={
+            <DailyChangeBadge
+              valueChange={totalDailyValueChange}
+              changePercent={totalAssetsValue > 0 ? (totalDailyValueChange / Math.max(totalAssetsValue - totalDailyValueChange, 1)) * 100 : null}
+              showValueChange
+              size="sm"
+            />
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '0.25rem' }}>
+            {movers.map(({ asset, dc }, idx) => {
+              const isUp = dc.valueChange >= 0;
+              const color = isUp ? 'var(--success)' : 'var(--danger)';
+              const maxAbs = Math.abs(movers[0]?.dc?.valueChange ?? 1);
+              const barWidth = maxAbs > 0 ? Math.abs(dc.valueChange) / maxAbs * 100 : 0;
+              return (
+                <div key={asset.id} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '0.6rem 0.75rem',
+                  background: `${color}08`,
+                  borderRadius: 'var(--border-radius-sm)',
+                  border: `1px solid ${color}20`,
+                  transition: 'background 0.2s',
+                }}>
+                  <span style={{
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: `${color}18`, color, fontSize: '0.7rem',
+                    fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>{idx + 1}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+                      <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{asset.name}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{asset.type}</span>
+                    </div>
+                    <div style={{ marginTop: '0.3rem', height: '3px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <div style={{ width: `${barWidth}%`, height: '100%', background: color, borderRadius: '2px', transition: 'width 0.5s ease' }} />
+                    </div>
+                  </div>
+                  <DailyChangeBadge
+                    changePercent={dc.changePercent}
+                    change={dc.change}
+                    valueChange={dc.valueChange}
+                    showValueChange
+                    size="sm"
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted" style={{ marginTop: '0.75rem' }}>
+            Based on previous close. Refresh prices for real-time data.
+          </p>
+        </ExpandablePanel>
+      )}
 
       {/* Portfolio Allocation — collapsed, expand for legend */}
       {allocationBarData.length > 0 && (
@@ -366,6 +452,7 @@ const Dashboard = () => {
                     <th>Type</th>
                     <th className="text-right">Qty</th>
                     <th className="text-right">Price</th>
+                    <th className="text-right">Today's Δ</th>
                     <th className="text-right">Value</th>
                     <th style={{ width: '90px' }}>Share</th>
                   </tr>
@@ -386,6 +473,20 @@ const Dashboard = () => {
                         <td><span className="chip">{asset.type}</span></td>
                         <td className="text-right">{ub && asset.qty ? formatNumber(asset.qty) : <span className="text-muted">&mdash;</span>}</td>
                         <td className="text-right">{ub && asset.currentPrice ? formatCurrencyDecimal(asset.currentPrice) : <span className="text-muted">&mdash;</span>}</td>
+                        <td className="text-right">
+                          {(() => {
+                            if (!ub || !asset.symbol) return <span className="text-muted">&mdash;</span>;
+                            const dc = getAssetDailyChange(asset);
+                            return dc ? (
+                              <DailyChangeBadge
+                                changePercent={dc.changePercent}
+                                valueChange={dc.valueChange}
+                                showValueChange
+                                size="sm"
+                              />
+                            ) : <span className="text-muted text-xs">—</span>;
+                          })()}
+                        </td>
                         <td className="text-right text-strong font-medium">{formatCurrency(val)}</td>
                         <td>
                           <div className="flex items-center gap-2">

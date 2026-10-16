@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { initialAssets, initialLiabilities, UNIT_BASED_TYPES } from '../utils/dummyData';
-import { fetchCurrentPrice } from '../utils/priceService';
+import { fetchAssetQuoteWithDailyChange } from '../utils/priceService';
 import { getAssetValue, calculateHealthScore } from '../utils/financeCalculations';
 
 const FinperaContext = createContext();
@@ -43,6 +43,9 @@ export const FinperaProvider = ({ children }) => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefreshed, setLastRefreshed] = useState(() => localStorage.getItem('finpera_last_refreshed') || null);
+  // dailyChanges: { [assetId]: { price, previousClose, change, changePercent } }
+  const [dailyChanges, setDailyChanges] = useState({});
+  const bootFetchDone = useRef(false);
 
   useEffect(() => { saveJSON('finpera_assets', assets); }, [assets]);
   useEffect(() => { saveJSON('finpera_liabilities', liabilities); }, [liabilities]);
@@ -112,32 +115,53 @@ export const FinperaProvider = ({ children }) => {
     setAssets(prev => [...prev, ...newAssets.map(a => ({ ...a, id: crypto.randomUUID() }))]);
   };
 
+  /* ── Daily Change fetch (used on boot and manual refresh) ── */
+  const fetchDailyChanges = useCallback(async (assetList, updatePrices = false) => {
+    const refreshable = assetList.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol);
+    if (refreshable.length === 0) return { updated: 0, failed: 0 };
+    let updated = 0, failed = 0;
+    const newChanges = {};
+    const updatedAssets = updatePrices ? [...assetList] : null;
+    for (const asset of refreshable) {
+      try {
+        const quote = await fetchAssetQuoteWithDailyChange(asset);
+        if (quote && quote.price > 0) {
+          newChanges[asset.id] = quote;
+          if (updatePrices && updatedAssets) {
+            const idx = updatedAssets.findIndex(a => a.id === asset.id);
+            if (idx !== -1) {
+              updatedAssets[idx] = { ...updatedAssets[idx], currentPrice: quote.price, value: updatedAssets[idx].qty * quote.price };
+            }
+          }
+          updated++;
+        } else failed++;
+      } catch { failed++; }
+    }
+    setDailyChanges(prev => ({ ...prev, ...newChanges }));
+    if (updatePrices && updatedAssets) setAssets(updatedAssets);
+    return { updated, failed };
+  }, []);
+
+  /* ── Auto-load daily changes on boot (without overwriting stored prices) ── */
+  useEffect(() => {
+    if (bootFetchDone.current) return;
+    bootFetchDone.current = true;
+    fetchDailyChanges(assets, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ── Refresh Prices ── */
   const refreshPrices = useCallback(async () => {
     const refreshable = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol);
     if (refreshable.length === 0) return { updated: 0, failed: 0 };
     setRefreshing(true);
-    let updated = 0, failed = 0;
-    const updatedAssets = [...assets];
-    for (const asset of refreshable) {
-      try {
-        const price = await fetchCurrentPrice(asset);
-        if (price && price > 0) {
-          const idx = updatedAssets.findIndex(a => a.id === asset.id);
-          if (idx !== -1) {
-            updatedAssets[idx] = { ...updatedAssets[idx], currentPrice: price, value: updatedAssets[idx].qty * price };
-            updated++;
-          }
-        } else failed++;
-      } catch { failed++; }
-    }
-    setAssets(updatedAssets);
+    const result = await fetchDailyChanges(assets, true);
     const now = new Date().toISOString();
     setLastRefreshed(now);
     localStorage.setItem('finpera_last_refreshed', now);
     setRefreshing(false);
-    return { updated, failed };
-  }, [assets]);
+    return result;
+  }, [assets, fetchDailyChanges]);
 
   /* ── Net Worth Snapshot (auto daily) ── */
   useEffect(() => {
@@ -160,6 +184,31 @@ export const FinperaProvider = ({ children }) => {
 
   const healthScore = calculateHealthScore({ assets, liabilities, settings, goals, insurance, budget });
 
+  /**
+   * Returns daily change info for a given asset:
+   * { price, previousClose, change, changePercent, valueChange }
+   * valueChange = price-change * qty (portfolio impact).
+   */
+  const getAssetDailyChange = useCallback((asset) => {
+    const q = dailyChanges[asset?.id];
+    if (!q || q.change == null) return null;
+    const qty = asset.qty ?? 0;
+    return {
+      price: q.price,
+      previousClose: q.previousClose,
+      change: q.change,
+      changePercent: q.changePercent,
+      valueChange: q.change * qty,
+    };
+  }, [dailyChanges]);
+
+  /** Aggregate daily portfolio change across all assets that have live data. */
+  const totalDailyValueChange = assets.reduce((sum, a) => {
+    const d = dailyChanges[a.id];
+    if (!d || d.change == null) return sum;
+    return sum + d.change * (a.qty ?? 0);
+  }, 0);
+
   return (
     <FinperaContext.Provider value={{
       assets, addAsset, updateAsset, deleteAsset,
@@ -173,6 +222,7 @@ export const FinperaProvider = ({ children }) => {
       settings, updateSettings,
       aiConversations, addAIConversation, updateAIConversation, deleteAIConversation,
       importTransactions, getAssetValue, refreshPrices, refreshing, lastRefreshed,
+      dailyChanges, getAssetDailyChange, totalDailyValueChange,
       totalAssetsValue, totalLiabilitiesValue, netWorth, totalMonthlyEMI,
       healthScore,
     }}>
