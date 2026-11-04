@@ -142,6 +142,7 @@ const Dashboard = () => {
           <span>
             {refreshResult.updated > 0 && `Updated ${refreshResult.updated} price${refreshResult.updated > 1 ? 's' : ''}.`}
             {refreshResult.failed > 0 && ` ${refreshResult.failed} failed.`}
+            {refreshResult.errors?.length > 0 && <span style={{ display: 'block', marginTop: '0.35rem', fontSize: '0.78rem' }}>{refreshResult.errors[0]}</span>}
           </span>
           <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)} aria-label="Dismiss"><X size={14} /></button>
         </div>

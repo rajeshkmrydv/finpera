@@ -121,6 +121,7 @@ export const FinperaProvider = ({ children }) => {
     const refreshable = assetList.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol);
     if (refreshable.length === 0) return { updated: 0, failed: 0 };
     let updated = 0, failed = 0;
+    const errors = [];
     const newChanges = {};
     const priceUpdates = new Map();
     for (const asset of refreshable) {
@@ -131,7 +132,10 @@ export const FinperaProvider = ({ children }) => {
           if (updatePrices) priceUpdates.set(asset.id, { symbol: asset.symbol, type: asset.type, price: quote.price });
           updated++;
         } else failed++;
-      } catch { failed++; }
+      } catch (error) {
+        failed++;
+        errors.push(`${asset.name}: ${error.message}`);
+      }
     }
     setDailyChanges(prev => ({ ...prev, ...newChanges }));
     if (updatePrices && priceUpdates.size > 0) {
@@ -142,7 +146,7 @@ export const FinperaProvider = ({ children }) => {
         return { ...asset, currentPrice: quote.price, value: Number(asset.qty || 0) * quote.price };
       }));
     }
-    return { updated, failed };
+    return { updated, failed, errors };
   }, []);
 
   /* ── Auto-load daily changes on boot (without overwriting stored prices) ── */

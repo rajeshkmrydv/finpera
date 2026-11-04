@@ -187,6 +187,7 @@ const Assets = () => {
           <span>
             {refreshResult.updated > 0 && `Updated ${refreshResult.updated} price${refreshResult.updated > 1 ? 's' : ''}.`}
             {refreshResult.failed > 0 && ` ${refreshResult.failed} failed to fetch.`}
+            {refreshResult.errors?.length > 0 && <span style={{ display: 'block', marginTop: '0.35rem', fontSize: '0.78rem' }}>{refreshResult.errors[0]}</span>}
           </span>
           <button className="btn-ghost btn-sm ml-auto" onClick={() => setRefreshResult(null)} aria-label="Dismiss"><X size={14} /></button>
         </div>
@@ -400,7 +401,7 @@ const Assets = () => {
                       <input className="form-control" type="number" step="any" required value={formData.currentPrice}
                         readOnly={fetchingCommodityPrice}
                         onChange={(e) => setFormData({ ...formData, currentPrice: e.target.value })}
-                        placeholder={fetchingCommodityPrice ? 'Fetching live price...' : 'Auto-filled from GoldPriceZ'} />
+                        placeholder={fetchingCommodityPrice ? 'Fetching live price...' : 'Auto-filled from Gold-API.com'} />
                     </div>
                   </div>
 
@@ -414,7 +415,7 @@ const Assets = () => {
                   )}
 
                   <p className="text-xs text-muted" style={{ marginTop: '-0.5rem', marginBottom: '1rem' }}>
-                    Live price via GoldPriceZ. You can override the price manually if needed.
+                    Spot valuation via Gold-API.com, converted to INR per gram. Jewellery premiums and charges are excluded. You can override it manually.
                   </p>
                 </>
               ) : isUnitBased(formData.type) ? (

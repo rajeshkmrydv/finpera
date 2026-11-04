@@ -6,6 +6,8 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
   const [query, setQuery] = useState(value || '');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const searchVersion = useRef(0);
   const [fetchingPrice, setFetchingPrice] = useState(false);
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -27,7 +29,9 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const doSearch = useCallback(async (q) => {
+  useEffect(() => () => { clearTimeout(debounceRef.current); searchVersion.current++; }, []);
+
+  const doSearch = useCallback(async (q, version) => {
     if (!q || q.length < 2) {
       setResults([]);
       return;
@@ -35,12 +39,17 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
     setLoading(true);
     try {
       const data = await searchAssets(q, type);
+      if (version !== searchVersion.current) return;
       setResults(data);
-      setOpen(data.length > 0);
-    } catch {
+      setSearchError('');
+      setOpen(true);
+    } catch (error) {
+      if (version !== searchVersion.current) return;
+      setSearchError(error.message);
       setResults([]);
+      setOpen(true);
     } finally {
-      setLoading(false);
+      if (version === searchVersion.current) setLoading(false);
     }
   }, [type]);
 
@@ -48,7 +57,12 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
     const val = e.target.value;
     setQuery(val);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(val), 350);
+    const version = ++searchVersion.current;
+    setSearchError('');
+    setOpen(false);
+    setResults([]);
+    setLoading(false);
+    debounceRef.current = setTimeout(() => doSearch(val, version), 350);
   };
 
   const handleSelect = async (item) => {
@@ -58,8 +72,8 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
     setFetchingPrice(true);
     let price = null;
     try {
-      price = await getPrice(item.symbol);
-    } catch { /* fallback to manual */ }
+      price = await getPrice(item.symbol, type);
+    } catch (error) { setSearchError(error.message + ' Enter a price manually.'); }
     setFetchingPrice(false);
 
     onSelect({
@@ -71,6 +85,10 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
   };
 
   const handleClear = () => {
+    clearTimeout(debounceRef.current);
+    searchVersion.current++;
+    setSearchError('');
+    setLoading(false);
     setQuery('');
     setResults([]);
     setOpen(false);
@@ -87,7 +105,7 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
           value={query}
           onChange={handleInputChange}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder={isMF ? 'Search mutual fund name...' : 'Search stock / ETF name...'}
+          placeholder={isMF ? 'Search exact fund and plan...' : type === 'Crypto' ? 'Search Bitcoin or Ethereum...' : 'Search stock / ETF name...'}
           disabled={disabled}
         />
         <div style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)', display: 'flex' }}>
@@ -105,6 +123,8 @@ const AssetSearch = ({ type, value, onSelect, disabled }) => {
           </button>
         )}
       </div>
+
+      {searchError && <p className="text-xs mt-1" role="alert" style={{ color: 'var(--danger)' }}>{searchError}</p>}
 
       {fetchingPrice && (
         <p className="text-xs mt-1" style={{ color: 'var(--accent-primary)' }}>
