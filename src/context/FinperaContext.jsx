@@ -46,6 +46,7 @@ export const FinperaProvider = ({ children }) => {
   // dailyChanges: { [assetId]: { price, previousClose, change, changePercent } }
   const [dailyChanges, setDailyChanges] = useState({});
   const bootFetchDone = useRef(false);
+  const refreshInProgress = useRef(false);
 
   useEffect(() => { saveJSON('finpera_assets', assets); }, [assets]);
   useEffect(() => { saveJSON('finpera_liabilities', liabilities); }, [liabilities]);
@@ -121,24 +122,26 @@ export const FinperaProvider = ({ children }) => {
     if (refreshable.length === 0) return { updated: 0, failed: 0 };
     let updated = 0, failed = 0;
     const newChanges = {};
-    const updatedAssets = updatePrices ? [...assetList] : null;
+    const priceUpdates = new Map();
     for (const asset of refreshable) {
       try {
         const quote = await fetchAssetQuoteWithDailyChange(asset);
         if (quote && quote.price > 0) {
           newChanges[asset.id] = quote;
-          if (updatePrices && updatedAssets) {
-            const idx = updatedAssets.findIndex(a => a.id === asset.id);
-            if (idx !== -1) {
-              updatedAssets[idx] = { ...updatedAssets[idx], currentPrice: quote.price, value: updatedAssets[idx].qty * quote.price };
-            }
-          }
+          if (updatePrices) priceUpdates.set(asset.id, { symbol: asset.symbol, type: asset.type, price: quote.price });
           updated++;
         } else failed++;
       } catch { failed++; }
     }
     setDailyChanges(prev => ({ ...prev, ...newChanges }));
-    if (updatePrices && updatedAssets) setAssets(updatedAssets);
+    if (updatePrices && priceUpdates.size > 0) {
+      // Merge into the latest state so in-flight refreshes cannot undo edits or deletions.
+      setAssets(current => current.map(asset => {
+        const quote = priceUpdates.get(asset.id);
+        if (!quote || quote.symbol !== asset.symbol || quote.type !== asset.type) return asset;
+        return { ...asset, currentPrice: quote.price, value: Number(asset.qty || 0) * quote.price };
+      }));
+    }
     return { updated, failed };
   }, []);
 
@@ -154,13 +157,21 @@ export const FinperaProvider = ({ children }) => {
   const refreshPrices = useCallback(async () => {
     const refreshable = assets.filter(a => UNIT_BASED_TYPES.includes(a.type) && a.symbol);
     if (refreshable.length === 0) return { updated: 0, failed: 0 };
+    if (refreshInProgress.current) return { updated: 0, failed: 0 };
+    refreshInProgress.current = true;
     setRefreshing(true);
-    const result = await fetchDailyChanges(assets, true);
-    const now = new Date().toISOString();
-    setLastRefreshed(now);
-    localStorage.setItem('finpera_last_refreshed', now);
-    setRefreshing(false);
-    return result;
+    try {
+      const result = await fetchDailyChanges(assets, true);
+      if (result.updated > 0) {
+        const now = new Date().toISOString();
+        setLastRefreshed(now);
+        localStorage.setItem('finpera_last_refreshed', now);
+      }
+      return result;
+    } finally {
+      refreshInProgress.current = false;
+      setRefreshing(false);
+    }
   }, [assets, fetchDailyChanges]);
 
   /* ── Net Worth Snapshot (auto daily) ── */

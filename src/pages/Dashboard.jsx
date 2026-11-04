@@ -6,7 +6,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
-import { TrendingUp, Wallet, CreditCard, Activity, X, ArrowUpRight, ArrowDownRight, Scale, PiggyBank, Target, BarChart3, Zap, ShieldCheck, PieChart as PieIcon, TrendingDown } from 'lucide-react';
+import { TrendingUp, Wallet, CreditCard, Activity, X, ArrowUpRight, ArrowDownRight, Scale, PiggyBank, Target, BarChart3, Zap, ShieldCheck, PieChart as PieIcon, TrendingDown, Plus, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import ExpandablePanel from '../components/ExpandablePanel';
 import FloatingActions from '../components/FloatingActions';
@@ -59,7 +59,7 @@ const ScoreRing = ({ score, color, size = 52 }) => (
 );
 
 const Dashboard = () => {
-  const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, getAssetDailyChange, totalDailyValueChange, refreshPrices, refreshing, lastRefreshed, healthScore } = useFinpera();
+  const { netWorth, totalAssetsValue, totalLiabilitiesValue, assets, liabilities, totalMonthlyEMI, getAssetValue, getAssetDailyChange, totalDailyValueChange, refreshPrices, refreshing, lastRefreshed, healthScore, settings } = useFinpera();
   const [refreshResult, setRefreshResult] = useState(null);
 
   const isUnitBased = (type) => UNIT_BASED_TYPES.includes(type);
@@ -122,18 +122,23 @@ const Dashboard = () => {
     <div className="dashboard-page">
       <div className="flex justify-between items-center mb-5" style={{ flexWrap: 'wrap', gap: '0.75rem' }}>
         <div className="page-header" style={{ marginBottom: 0 }}>
+          <span className="dashboard-eyebrow">YOUR FINANCIAL WORKSPACE</span>
           <h1>Financial Overview</h1>
-          <p>Your portfolio at a glance</p>
+          <p>{settings.name ? `Welcome back, ${settings.name}. ` : 'Welcome back. '}Your investments, commitments, and next steps in one place.</p>
         </div>
+        <div className="dashboard-actions">
+          <Link to="/assets" className="btn btn-primary"><Plus size={16} /> Manage assets</Link>
+          {refreshableCount > 0 && <button className="btn btn-secondary" onClick={handleRefresh} disabled={refreshing}><RefreshCw size={16} className={refreshing ? 'refresh-spinning' : ''} />{refreshing ? 'Refreshing…' : 'Refresh prices'}</button>}
         {lastRefreshed && (
           <span className="text-xs text-muted" style={{ background: 'rgba(255,255,255,0.7)', padding: '0.35rem 0.75rem', borderRadius: '999px', border: '1px solid var(--border-color)' }}>
             Updated {new Date(lastRefreshed).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
           </span>
         )}
+        </div>
       </div>
 
       {refreshResult && (
-        <div className={`status-message ${refreshResult.failed > 0 && refreshResult.updated === 0 ? 'error' : 'success'} mb-4`}>
+        <div role="status" className={`status-message ${refreshResult.failed > 0 && refreshResult.updated === 0 ? 'error' : 'success'} mb-4`}>
           <span>
             {refreshResult.updated > 0 && `Updated ${refreshResult.updated} price${refreshResult.updated > 1 ? 's' : ''}.`}
             {refreshResult.failed > 0 && ` ${refreshResult.failed} failed.`}
@@ -204,11 +209,17 @@ const Dashboard = () => {
         </div>
       </div>
 
+      <div className="dashboard-shortcuts" aria-label="Planning shortcuts">
+        <Link to="/transactions"><ArrowUpRight size={18} /><span>Record activity<small>Keep your investment history up to date</small></span><span aria-hidden="true">↗</span></Link>
+        <Link to="/goals"><Target size={18} /><span>Plan your next milestone<small>Connect today’s savings to tomorrow</small></span><span aria-hidden="true">↗</span></Link>
+        <Link to="/reports"><BarChart3 size={18} /><span>Understand your progress<small>Explore your portfolio reports</small></span><span aria-hidden="true">↗</span></Link>
+      </div>
+
       {/* Health Score — collapsed by default, expand for details */}
       <ExpandablePanel
         className="mb-4 animate-slideUp stagger-4"
         title="Financial Health Score"
-        subtitle={`${getScoreLabel(healthScore.overall)} · tap to see breakdown`}
+        subtitle={`${getScoreLabel(healthScore.overall)} · explore your score breakdown`}
         icon={Zap}
         iconColor={scoreColor}
         accent={`linear-gradient(90deg, ${scoreColor}, transparent)`}
@@ -236,6 +247,7 @@ const Dashboard = () => {
                 <div style={{ height: '4px', background: 'var(--bg-tertiary)', borderRadius: '2px', overflow: 'hidden' }}>
                   <div style={{ width: `${comp.score * 10}%`, height: '100%', background: barColor, borderRadius: '2px', transition: 'width 0.5s ease' }} />
                 </div>
+                <p className="health-component-tip">{comp.tip}</p>
               </div>
             );
           })}

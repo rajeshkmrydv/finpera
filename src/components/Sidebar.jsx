@@ -53,6 +53,17 @@ const Sidebar = () => {
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
   useEffect(() => {
+    if (!mobileOpen) return;
+    const closeOnEscape = event => {
+      if (event.key === 'Escape') {
+        setMobileOpen(false);
+        document.querySelector('.hamburger-btn')?.focus();
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [mobileOpen]);
+  useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileOpen]);
@@ -66,14 +77,14 @@ const Sidebar = () => {
           <div className="logo-mobile-icon">FP</div>
           <span>FinPera</span>
         </div>
-        <button className="hamburger-btn" onClick={toggle} aria-label="Toggle menu">
+        <button className="hamburger-btn" onClick={toggle} aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} aria-controls="main-sidebar">
           {mobileOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
 
       <div className={`sidebar-overlay ${mobileOpen ? 'open' : ''}`} onClick={() => setMobileOpen(false)} aria-hidden="true" />
 
-      <aside className={`sidebar ${mobileOpen ? 'open' : ''}`}>
+      <aside id="main-sidebar" className={`sidebar ${mobileOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo-icon">FP</div>
           <div>

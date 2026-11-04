@@ -1,0 +1,31 @@
+/* Refine the existing FinPera visual system without changing page contracts. */
+:root { --text-tertiary: #68778e; --border-color: rgba(15,23,42,.09); }
+body { background-image: radial-gradient(at 15% 0%, rgba(99,102,241,.045) 0, transparent 50%); }
+.floating-orbs { display: none; }
+.main-content { min-width: 0; }
+.gradient-card.floating-card { animation: none; }
+.gradient-card.grd-indigo { background: linear-gradient(120deg,#3730a3,#6366f1); }
+.gradient-card.grd-emerald { background: linear-gradient(120deg,#065f46,#059669); }
+.gradient-card.grd-rose { background: linear-gradient(120deg,#9f1239,#e11d48); }
+.dashboard-page { max-width: 1440px; margin: 0 auto; }
+.dashboard-eyebrow { display: block; margin-bottom: .5rem; font-size: .65rem; letter-spacing: .14em; font-weight: 700; color: var(--accent-primary); }
+.dashboard-page .page-header h1 { font-size: clamp(1.6rem,2.6vw,2.2rem); letter-spacing: -.045em; }
+.dashboard-page .page-header p { max-width: 620px; margin-top: .5rem; }
+.dashboard-actions { display: flex; align-items: center; justify-content: flex-end; gap: .65rem; flex-wrap: wrap; }
+.dashboard-actions > .text-xs { flex-basis: 100%; text-align: right; }
+.dashboard-shortcuts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.dashboard-shortcuts a { display: flex; align-items: center; gap: .75rem; padding: 1.1rem; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-secondary); color: var(--text-primary); transition: border-color .2s,box-shadow .2s; }
+.dashboard-shortcuts a:hover { border-color: var(--accent-primary); box-shadow: var(--shadow-sm); }
+.dashboard-shortcuts a > svg { flex-shrink: 0; color: var(--accent-primary); }
+.dashboard-shortcuts a > span:first-of-type { font-size: .8rem; font-weight: 600; }
+.dashboard-shortcuts a > span:last-child { margin-left: auto; color: var(--text-tertiary); }
+.dashboard-shortcuts small { display: block; font-size: .7rem; line-height: 1.5; font-weight: 400; color: var(--text-tertiary); margin-top: .2rem; }
+.health-component-tip { color: var(--text-secondary); font-size: .72rem; line-height: 1.5; margin-top: .65rem; }
+.sidebar-tagline { color: rgba(255,255,255,.6); }
+.nav-section-label { color: rgba(255,255,255,.5); }
+.nav-item { color: rgba(255,255,255,.7); }
+.sidebar-footer { color: rgba(255,255,255,.5); }
+.refresh-spinning { animation: spin 1s linear infinite; }
+@media (max-width: 1200px) { .dashboard-shortcuts { grid-template-columns: 1fr; gap: .6rem; } .dashboard-shortcuts a { padding: .85rem 1rem; } }
+@media (max-width: 640px) { .dashboard-actions { justify-content: flex-start; width: 100%; } .dashboard-actions > .text-xs { text-align: left; } .dashboard-page .card-value { font-size: clamp(1.6rem,7vw,2.5rem); overflow-wrap: anywhere; } .expandable-header { flex-wrap: wrap; gap: .75rem; } .expandable-header-right { margin-left: auto; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }

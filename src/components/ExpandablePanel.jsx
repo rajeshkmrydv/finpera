@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useId } from 'react';
 import { ChevronDown } from 'lucide-react';
 
 const ExpandablePanel = ({
@@ -13,6 +13,7 @@ const ExpandablePanel = ({
   accent,
 }) => {
   const [open, setOpen] = useState(defaultOpen);
+  const panelId = useId();
 
   return (
     <div className={`expandable-panel ${open ? 'is-open' : ''} ${className}`}>
@@ -22,6 +23,7 @@ const ExpandablePanel = ({
         className="expandable-header"
         onClick={() => setOpen(v => !v)}
         aria-expanded={open}
+        aria-controls={panelId}
       >
         <div className="expandable-header-left">
           {Icon && (
@@ -41,7 +43,7 @@ const ExpandablePanel = ({
           </span>
         </div>
       </button>
-      <div className="expandable-body" aria-hidden={!open}>
+      <div id={panelId} className="expandable-body" aria-hidden={!open} inert={!open}>
         <div className="expandable-inner">{children}</div>
       </div>
     </div>
